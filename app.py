@@ -1,162 +1,71 @@
 import streamlit as st
-import matplotlib.pyplot as plt
 from langchain_groq import ChatGroq
-from langchain.prompts import ChatPromptTemplate
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
 
 # Configuración de la página
-st.set_page_config(page_title="Agente de Biología", page_icon="🧬", layout="centered")
+st.set_page_config(page_title="🧬 Agente de Biología", page_icon="🧬", layout="wide")
 
-# Encabezado
-st.markdown(
+st.title("🧬 Agente Virtual de Biología")
+st.write("Este asistente responde **únicamente preguntas de biología**.")
+
+# Campo para ingresar la API key
+api_key = st.text_input("🔑 Ingresa tu API Key de Groq:", type="password")
+
+if api_key:
+    # Definir prompt restringido a biología
+    prompt_template = """
+    Eres un experto en biología. Responde de forma clara, educativa y detallada
+    solo a preguntas de biología. Si la pregunta no está relacionada con biología,
+    responde: "Lo siento, solo puedo responder preguntas sobre biología."
+
+    Pregunta: {input}
+    Respuesta:
     """
-    <h1 style="text-align: center; color: green;">
-        🧬 Asistente Virtual de Biología
-    </h1>
-    <p style="text-align: center;">
-        Aprende sobre conceptos biológicos, identificación de especies y procesos de la vida.
-    </p>
-    """,
-    unsafe_allow_html=True
-)
+    PROMPT = PromptTemplate(template=prompt_template, input_variables=["input"])
 
-# Entrada de API Key
-groq_api_key = st.text_input(
-    "Introduce tu GROQ API Key:",
-    type="password",
-    help="Puedes obtener tu API Key en https://console.groq.com/"
-)
-
-# Inicializar memoria para historial de conversación
-if "memory" not in st.session_state:
-    st.session_state["memory"] = ConversationBufferMemory(return_messages=True)
-
-# Inicializar caché de respuestas
-if "cache" not in st.session_state:
-    st.session_state["cache"] = {}
-
-# Inicializar modelo si hay API Key
-if groq_api_key:
+    # Configurar modelo Llama3 en Groq
     llm = ChatGroq(
-        groq_api_key=groq_api_key,
-        model="llama3-8b-8192",
-        temperature=0.3,       # más estable y rápido
-        max_tokens=512,
-        streaming=True         # activa respuesta en streaming
+        groq_api_key=api_key,
+        model_name="llama3-8b-8192",
+        temperature=0.3,
     )
 
-    # Prompt general restringido a biología
-    system_prompt = (
-        "Eres un experto en biología. "
-        "Solo debes responder preguntas relacionadas con biología, "
-        "como conceptos básicos, identificación de especies a partir de descripciones, "
-        "procesos celulares, fisiológicos, genéticos, evolutivos o ecológicos. "
-        "Si el usuario pregunta algo fuera de biología, responde: "
-        "'Lo siento, solo puedo responder preguntas relacionadas con biología'."
-    )
+    # Memoria de conversación (pero no mostramos el prompt completo en historial)
+    if "memory" not in st.session_state:
+        st.session_state.memory = ConversationBufferMemory()
+    if "conversation" not in st.session_state:
+        st.session_state.conversation = ConversationChain(
+            llm=llm,
+            prompt=PROMPT,
+            memory=st.session_state.memory,
+            verbose=False
+        )
+    if "history" not in st.session_state:
+        st.session_state.history = []
 
-    chain = ConversationChain(
-        llm=llm,
-        memory=st.session_state["memory"],
-        verbose=False
-    )
+    # Input del usuario
+    col1, col2 = st.columns([4,1])
+    with col1:
+        user_input = st.text_input("💬 Haz una pregunta sobre biología:", key="input_box")
+    with col2:
+        if st.button("🧹 Limpiar"):
+            st.session_state.input_box = ""  # Limpia la caja de texto
 
-    # Preguntas sugeridas
-    ejemplos = [
-        "¿Cuál es la diferencia entre mitosis y meiosis?",
-        "Explica el proceso de fotosíntesis.",
-        "¿Qué características permiten identificar a un mamífero?",
-        "Describe cómo funciona la cadena trófica en un ecosistema.",
-        "¿Cómo se diferencian las bacterias de los virus?",
-        "Dibuja la estructura básica de una célula eucariota."
-    ]
+    if st.button("Enviar"):
+        if user_input:
+            response = st.session_state.conversation.predict(input=user_input)
+            # Guardar en historial solo la pregunta y respuesta
+            st.session_state.history.append({"pregunta": user_input, "respuesta": response})
+            st.session_state.input_box = ""  # Limpia la caja después de enviar
 
-    st.subheader("🔍 Haz tu pregunta de biología")
+    # Mostrar historial de conversación limpio
+    st.subheader("📜 Historial de conversación")
+    for chat in st.session_state.history:
+        st.markdown(f"**👤 Usuario:** {chat['pregunta']}")
+        st.markdown(f"**🧬 Agente:** {chat['respuesta']}")
 
-    ejemplo_seleccionado = st.selectbox(
-        "Elige un ejemplo de pregunta o escribe la tuya:",
-        ["---"] + ejemplos
-    )
-
-    pregunta_usuario = st.text_area("Escribe aquí tu consulta:", height=120)
-
-    if ejemplo_seleccionado != "---":
-        pregunta_usuario = ejemplo_seleccionado
-
-    if st.button("Enviar", type="primary"):
-        if pregunta_usuario.strip():
-
-            # Revisión en caché para optimizar rendimiento
-            if pregunta_usuario in st.session_state["cache"]:
-                respuesta = st.session_state["cache"][pregunta_usuario]
-            else:
-                with st.spinner("Analizando tu pregunta... 🌱"):
-                    respuesta = chain.run(f"{system_prompt}\n\nPregunta: {pregunta_usuario}")
-                    # Guardar en caché
-                    st.session_state["cache"][pregunta_usuario] = respuesta
-
-            st.markdown("### 📖 Respuesta:")
-            st.write(respuesta)
-
-            # Mostrar historial de conversación
-            with st.expander("📜 Historial de conversación"):
-                for msg in st.session_state["memory"].chat_memory.messages:
-                    role = "👤 Usuario" if msg.type == "human" else "🤖 Agente"
-                    st.markdown(f"**{role}:** {msg.content}")
-
-            # Visualizaciones según la temática
-            if "fotosíntesis" in pregunta_usuario.lower():
-                st.subheader("🌞 Visualización del proceso de fotosíntesis")
-                fig, ax = plt.subplots(figsize=(6,4))
-                ax.text(0.1, 0.8, "🌞 Luz solar", fontsize=12)
-                ax.text(0.1, 0.6, "🌿 Cloroplasto", fontsize=12)
-                ax.text(0.1, 0.4, "CO₂ + H₂O", fontsize=12)
-                ax.text(0.1, 0.2, "➡ Glucosa + O₂", fontsize=12)
-                ax.set_axis_off()
-                st.pyplot(fig)
-
-            elif "cadena trófica" in pregunta_usuario.lower():
-                st.subheader("🌍 Cadena trófica simplificada")
-                niveles = ["☘️ Productores", "🐇 Consumidores primarios", "🦅 Consumidores secundarios", "🍄 Descomponedores"]
-                fig, ax = plt.subplots(figsize=(6,4))
-                for i, nivel in enumerate(niveles):
-                    ax.text(0.5, 1 - i*0.25, nivel, fontsize=12, ha="center")
-                    if i < len(niveles)-1:
-                        ax.arrow(0.5, 1 - i*0.25 - 0.05, 0, -0.12,
-                                 head_width=0.05, head_length=0.05, fc="black", ec="black")
-                ax.set_axis_off()
-                st.pyplot(fig)
-
-            elif "célula" in pregunta_usuario.lower():
-                st.subheader("🔬 Esquema básico de una célula eucariota")
-                fig, ax = plt.subplots(figsize=(5,5))
-                circle = plt.Circle((0.5,0.5), 0.4, fill=False, linewidth=2)
-                ax.add_patch(circle)
-                nucleo = plt.Circle((0.5,0.5), 0.15, fill=False, color="blue", linewidth=2)
-                ax.add_patch(nucleo)
-                ax.text(0.5, 0.5, "Núcleo", fontsize=10, ha="center", va="center", color="blue")
-                ax.text(0.8, 0.5, "Membrana\ncelular", fontsize=9, ha="center", va="center")
-                ax.text(0.5, 0.2, "Citoplasma", fontsize=9, ha="center", va="center")
-                ax.set_xlim(0,1)
-                ax.set_ylim(0,1)
-                ax.set_aspect("equal")
-                ax.axis("off")
-                st.pyplot(fig)
-
-        else:
-            st.warning("Por favor ingresa una pregunta antes de enviar.")
-else:
-    st.info("🔑 Por favor, introduce tu GROQ API Key para comenzar.")
-
-# Pie de página
-st.markdown(
-    """
-    <hr>
-    <p style="text-align: center; font-size: 14px; color: gray;">
-        🌿 Desarrollado con LangChain + Groq + Llama3-8B-8192 <br>
-        Optimizado para aprendizaje en biología.
-    </p>
     """,
     unsafe_allow_html=True
 )
