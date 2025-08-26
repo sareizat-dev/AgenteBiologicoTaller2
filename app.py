@@ -7,13 +7,25 @@ from langchain_groq import ChatGroq
 # ---------------------------
 # Configuración inicial
 # ---------------------------
-st.set_page_config(page_title="Agente de Biología 🧬", page_icon="🧬", layout="centered")
+st.set_page_config(page_title="Agente de Biología 🧬", page_icon="🌱", layout="wide")
 
-st.title("🧬 Agente Virtual de Biología")
-st.write("Este agente responde **únicamente preguntas relacionadas con biología**.")
+st.markdown(
+    """
+    <style>
+    body {background-color: #f0fff4;}
+    .stTextInput > div > div > input {
+        background-color: #e6ffe6;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.title("🌱 Agente Virtual de Biología")
+st.caption("Responde únicamente preguntas relacionadas con biología: especies, procesos biológicos y conceptos básicos.")
 
 # ---------------------------
-# API Key de Groq
+# API Key
 # ---------------------------
 if "groq_api_key" not in st.session_state:
     st.session_state.groq_api_key = ""
@@ -22,8 +34,10 @@ def set_api_key():
     st.session_state.groq_api_key = st.session_state.key_input
 
 if not st.session_state.groq_api_key:
-    st.text_input("🔑 Ingresa tu API Key de Groq:", type="password", key="key_input")
-    st.button("Guardar API Key", on_click=set_api_key)
+    with st.container():
+        st.subheader("🔑 Configuración")
+        st.text_input("Ingresa tu API Key de Groq:", type="password", key="key_input")
+        st.button("Guardar API Key", on_click=set_api_key)
     st.stop()
 
 # ---------------------------
@@ -50,7 +64,7 @@ prompt_template = PromptTemplate(
 )
 
 # ---------------------------
-# Modelo Groq (llama3-8b-8192)
+# Modelo Groq
 # ---------------------------
 llm = ChatGroq(
     groq_api_key=st.session_state.groq_api_key,
@@ -67,48 +81,60 @@ chain = ConversationChain(
 )
 
 # ---------------------------
-# Historial de conversación
+# Inicializar historial
 # ---------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # ---------------------------
-# Definir input box con key fijo
+# Layout con tabs
 # ---------------------------
-if "input_widget" not in st.session_state:
-    st.session_state.input_widget = ""
+tab1, tab2 = st.tabs(["💬 Conversación", "⚙️ Configuración"])
 
-def limpiar_input():
-    st.session_state.input_widget = ""
+with tab1:
+    st.subheader("Chat de Biología 🧬")
 
-def borrar_historial():
-    st.session_state.messages = []
-    st.session_state.memory.clear()
+    # Input del usuario
+    if "input_widget" not in st.session_state:
+        st.session_state.input_widget = ""
 
-user_input = st.text_input(
-    "💬 Escribe tu pregunta de biología:",
-    key="input_widget"
-)
+    def limpiar_input():
+        st.session_state.input_widget = ""
 
-col1, col2 = st.columns(2)
-with col1:
-    st.button("🧹 Limpiar caja", on_click=limpiar_input)
-with col2:
-    st.button("🗑️ Borrar historial", on_click=borrar_historial)
+    def borrar_historial():
+        st.session_state.messages = []
+        st.session_state.memory.clear()
 
-# ---------------------------
-# Procesar respuesta
-# ---------------------------
-if user_input:
-    if len(st.session_state.messages) == 0 or user_input != st.session_state.messages[-1]["user"]:
-        response = chain.run(user_input)
-        st.session_state.messages.append({"user": user_input, "bot": response})
+    user_input = st.text_input(
+        "Pregunta de biología:",
+        key="input_widget",
+        placeholder="Ejemplo: ¿Cómo funciona la fotosíntesis?"
+    )
 
-# ---------------------------
-# Mostrar historial
-# ---------------------------
-if st.session_state.messages:
-    st.subheader("📜 Historial de conversación")
-    for msg in st.session_state.messages:
-        st.markdown(f"**👤 Tú:** {msg['user']}")
-        st.markdown(f"**🤖 Agente:** {msg['bot']}")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("🧹 Limpiar caja", on_click=limpiar_input)
+    with col2:
+        st.button("🗑️ Borrar historial", on_click=borrar_historial)
+
+    # Procesar respuesta
+    if user_input:
+        if len(st.session_state.messages) == 0 or user_input != st.session_state.messages[-1]["user"]:
+            response = chain.run(user_input)
+            st.session_state.messages.append({"user": user_input, "bot": response})
+
+    # Mostrar historial estilo chat
+    if st.session_state.messages:
+        for msg in st.session_state.messages:
+            with st.chat_message("user", avatar="👩‍🔬"):
+                st.markdown(msg["user"])
+            with st.chat_message("assistant", avatar="🧬"):
+                st.markdown(msg["bot"])
+
+with tab2:
+    st.subheader("⚙️ Configuración")
+    st.write("Aquí puedes volver a ingresar tu API Key si lo deseas.")
+    st.text_input("Reingresar API Key:", type="password", key="re_key_input")
+    if st.button("Actualizar API Key"):
+        st.session_state.groq_api_key = st.session_state.re_key_input
+        st.success("✅ API Key actualizada correctamente")
