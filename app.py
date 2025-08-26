@@ -73,13 +73,13 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # ---------------------------
-# Caja de texto controlada
+# Definir input box con key fijo
 # ---------------------------
-if "input_value" not in st.session_state:
-    st.session_state.input_value = ""
+if "input_widget" not in st.session_state:
+    st.session_state.input_widget = ""
 
 def limpiar_input():
-    st.session_state.input_value = ""
+    st.session_state.input_widget = ""
 
 def borrar_historial():
     st.session_state.messages = []
@@ -87,7 +87,6 @@ def borrar_historial():
 
 user_input = st.text_input(
     "💬 Escribe tu pregunta de biología:",
-    value=st.session_state.input_value,
     key="input_widget"
 )
 
@@ -100,10 +99,10 @@ with col2:
 # ---------------------------
 # Procesar respuesta
 # ---------------------------
-if user_input and user_input != st.session_state.input_value:
-    response = chain.run(user_input)
-    st.session_state.messages.append({"user": user_input, "bot": response})
-    st.session_state.input_value = ""  # limpiar después de enviar
+if user_input:
+    if len(st.session_state.messages) == 0 or user_input != st.session_state.messages[-1]["user"]:
+        response = chain.run(user_input)
+        st.session_state.messages.append({"user": user_input, "bot": response})
 
 # ---------------------------
 # Mostrar historial
