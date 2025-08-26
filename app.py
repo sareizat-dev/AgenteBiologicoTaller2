@@ -73,19 +73,24 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # ---------------------------
-# Input del usuario con botón de limpiar
+# Caja de texto controlada
 # ---------------------------
-if "input_box" not in st.session_state:
-    st.session_state.input_box = ""
+if "input_value" not in st.session_state:
+    st.session_state.input_value = ""
 
 def limpiar_input():
-    st.session_state.input_box = ""
+    st.session_state.input_value = ""
 
 def borrar_historial():
     st.session_state.messages = []
     st.session_state.memory.clear()
 
-user_input = st.text_input("💬 Escribe tu pregunta de biología:", key="input_box")
+user_input = st.text_input(
+    "💬 Escribe tu pregunta de biología:",
+    value=st.session_state.input_value,
+    key="input_widget"
+)
+
 col1, col2 = st.columns(2)
 with col1:
     st.button("🧹 Limpiar caja", on_click=limpiar_input)
@@ -95,10 +100,10 @@ with col2:
 # ---------------------------
 # Procesar respuesta
 # ---------------------------
-if user_input:
+if user_input and user_input != st.session_state.input_value:
     response = chain.run(user_input)
     st.session_state.messages.append({"user": user_input, "bot": response})
-    limpiar_input()  # limpiar después de enviar
+    st.session_state.input_value = ""  # limpiar después de enviar
 
 # ---------------------------
 # Mostrar historial
